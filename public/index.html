@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contato — jogo de palavras multiplayer</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤝</text></svg>" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ENTRADA -->
+  <section id="tela-entrada" class="tela">
+    <h1>🤝 Contato</h1>
+    <p class="sub">Jogo de palavras em grupo — de 3 a 16 jogadores.</p>
+
+    <label>Seu apelido
+      <input id="in-nome" maxlength="20" placeholder="Ex.: Ruan" autocomplete="nickname" />
+    </label>
+
+    <div class="cartao">
+      <h2>Entrar numa sala</h2>
+      <div class="linha">
+        <input id="in-sala" maxlength="4" placeholder="CÓDIGO" class="codigo" />
+        <button id="btn-entrar">Entrar</button>
+      </div>
+    </div>
+
+    <div class="cartao">
+      <h2>Criar uma sala</h2>
+      <div class="linha">
+        <label class="mini">Segundos p/ bloquear
+          <input id="in-segundos" type="number" min="5" max="60" value="15" />
+        </label>
+        <label class="mini">Rodadas (0 = 1 por jogador)
+          <input id="in-rodadas" type="number" min="0" max="20" value="0" />
+        </label>
+      </div>
+      <button id="btn-criar" class="principal">Criar sala</button>
+    </div>
+
+    <details class="regras">
+      <summary>Como se joga</summary>
+      <ol>
+        <li>O <b>Dono da Palavra</b> escolhe uma palavra secreta e revela só a primeira letra.</li>
+        <li>Os <b>caçadores</b> escrevem dicas: a definição de uma palavra que comece com as letras já reveladas (sem dizer a palavra!).</li>
+        <li>Quem acha que descobriu a palavra de uma dica clica em <b>CONTATO</b> e envia seu palpite.</li>
+        <li>O Dono tem alguns segundos para <b>bloquear</b>, dizendo a palavra da dica. Se acertar, o contato é anulado (+2 pra ele).</li>
+        <li>Se o bloqueio falhar e autor + contatante tiverem escrito a mesma palavra, <b>mais uma letra é revelada</b> (+1 pra cada).</li>
+        <li>Quem descobrir a palavra secreta pode <b>arriscar</b> a qualquer momento (+3 se acertar, −1 se errar).</li>
+        <li>A rodada acaba quando a palavra é adivinhada ou revelada por inteiro. Depois o posto de Dono passa adiante.</li>
+      </ol>
+    </details>
+    <p id="erro-entrada" class="erro"></p>
+  </section>
+
+  <!-- JOGO -->
+  <section id="tela-jogo" class="tela oculto">
+    <header class="topo">
+      <div>
+        <span class="rotulo">Sala</span>
+        <b id="lbl-sala" class="codigo-topo"></b>
+        <button id="btn-copiar" class="fantasma" title="Copiar código">copiar</button>
+      </div>
+      <div id="lbl-rodada" class="rotulo"></div>
+      <button id="btn-sair" class="fantasma">sair</button>
+    </header>
+
+    <div class="colunas">
+      <main>
+        <div id="painel-palavra" class="cartao destaque">
+          <div class="rotulo">Palavra do <b id="lbl-dono">—</b></div>
+          <div id="letras" class="letras"></div>
+          <div id="estado-msg" class="estado-msg"></div>
+        </div>
+
+        <!-- ações por fase -->
+        <div id="acao-lobby" class="cartao oculto">
+          <h2>Esperando jogadores…</h2>
+          <p class="sub">Compartilhe o código da sala. Mínimo de 3 jogadores (feito para 6 ou mais).</p>
+          <button id="btn-iniciar" class="principal">Começar o jogo</button>
+        </div>
+
+        <div id="acao-escolha-dono" class="cartao oculto">
+          <h2>Escolha a palavra secreta</h2>
+          <div class="linha">
+            <input id="in-palavra-secreta" placeholder="ex.: girassol" autocomplete="off" />
+            <button id="btn-definir" class="principal">Definir</button>
+          </div>
+          <p class="sub">Mínimo de 4 letras, sem acentos obrigatórios (ignoramos acentuação).</p>
+        </div>
+
+        <div id="acao-escolha-espera" class="cartao oculto">
+          <h2>Aguardando o Dono da Palavra…</h2>
+          <p class="sub"><b id="lbl-dono-espera"></b> está escolhendo a palavra secreta.</p>
+        </div>
+
+        <div id="acao-dica" class="cartao oculto">
+          <h2>Dar uma dica</h2>
+          <div class="linha">
+            <input id="in-dica-palavra" placeholder="sua palavra (secreta)" autocomplete="off" />
+          </div>
+          <div class="linha">
+            <input id="in-dica-texto" placeholder="a definição que todos vão ler" autocomplete="off" />
+            <button id="btn-dica" class="principal">Enviar dica</button>
+          </div>
+          <div class="linha">
+            <input id="in-arriscar" placeholder="arriscar a palavra secreta" autocomplete="off" />
+            <button id="btn-arriscar" class="perigo">Arriscar</button>
+          </div>
+        </div>
+
+        <div id="acao-dono" class="cartao oculto">
+          <h2>Você é o Dono da Palavra</h2>
+          <p class="sub">Leia as dicas e bloqueie os contatos dizendo a palavra que os caçadores estão combinando.</p>
+          <button id="btn-entregar" class="perigo">Entregar a palavra</button>
+        </div>
+
+        <div id="acao-fim-rodada" class="cartao oculto">
+          <h2 id="lbl-fim-rodada"></h2>
+          <button id="btn-proxima" class="principal">Próxima rodada</button>
+        </div>
+
+        <div id="acao-fim-jogo" class="cartao oculto">
+          <h2>🏆 Fim de jogo</h2>
+          <p id="lbl-vencedores"></p>
+          <button id="btn-novo-jogo" class="principal">Jogar de novo</button>
+        </div>
+
+        <h2 class="titulo-secao">Dicas na mesa</h2>
+        <div id="dicas" class="dicas"></div>
+      </main>
+
+      <aside>
+        <div class="cartao">
+          <h2>Placar</h2>
+          <ul id="placar" class="placar"></ul>
+        </div>
+        <div class="cartao">
+          <h2>Histórico</h2>
+          <ul id="log" class="log"></ul>
+        </div>
+      </aside>
+    </div>
+    <p id="erro-jogo" class="erro flutuante"></p>
+  </section>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
