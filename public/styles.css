@@ -139,3 +139,22 @@ button.contato { background: var(--aviso); border-color: var(--aviso); color: #2
 .placar .off { opacity: .45; }
 .log li { color: var(--suave); font-size: .85rem; padding: 5px 0; border-bottom: 1px solid var(--borda); }
 .log li:last-child { border-bottom: none; }
+
+/* seletor de modo */
+.modos { display: grid; gap: 10px; margin-bottom: 14px; }
+.modo {
+  display: block; margin: 0; cursor: pointer; color: var(--texto);
+  background: var(--cartao-2); border: 1px solid var(--borda);
+  border-radius: 10px; padding: 12px 14px;
+}
+.modo.selecionado { border-color: var(--acento); box-shadow: 0 0 0 1px rgba(110,231,183,.25); }
+.modo input { width: auto; margin: 0 8px 0 0; accent-color: var(--acento); }
+.modo b { font-size: .98rem; }
+.modo span { display: block; color: var(--suave); font-size: .84rem; margin-top: 4px; }
+
+/* etiqueta do tema sorteado */
+.tema {
+  display: inline-block; margin-top: 8px; padding: 4px 10px;
+  background: var(--cartao-2); border: 1px solid var(--acento-2);
+  color: var(--acento-2); border-radius: 999px; font-size: .85rem; font-weight: 600;
+}

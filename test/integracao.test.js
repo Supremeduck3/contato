@@ -107,3 +107,54 @@ test('partida completa com seis jogadores pela rede', async (t) => {
   const r2 = await proxima;
   assert.equal(r2.euSouDono, true, 'o posto de dono passou para o próximo');
 });
+
+test('modo Palavra Surpresa pela rede: tema público, palavra escondida de todos', async (t) => {
+  await new Promise((r) => servidor.listen(0, r));
+  const porta = servidor.address().port;
+  const sockets = [];
+  t.after(() => {
+    for (const s of sockets) s.close();
+    servidor.close();
+  });
+
+  const guardiao = await conectar(porta);
+  sockets.push(guardiao);
+  const criada = await pedir(guardiao, 'criarSala', {
+    nome: 'Guardiao',
+    config: { modo: 'surpresa', segundosContato: 5 },
+  });
+  assert.equal(criada.ok, true);
+
+  for (let i = 2; i <= 6; i++) {
+    const s = await conectar(porta);
+    sockets.push(s);
+    assert.equal((await pedir(s, 'entrarSala', { sala: criada.sala, nome: `Jogador${i}` })).ok, true);
+  }
+
+  // sem fase de escolha: começar já cai direto em 'jogando'
+  const doGuardiao = esperarEstado(guardiao, (e) => e.fase === 'jogando');
+  const doCacador = esperarEstado(sockets[1], (e) => e.fase === 'jogando');
+  assert.equal((await pedir(guardiao, 'iniciar')).ok, true);
+  const [vistaGuardiao, vistaCacador] = [await doGuardiao, await doCacador];
+
+  assert.equal(vistaGuardiao.modo, 'surpresa');
+  assert.equal(vistaGuardiao.euSouDono, true);
+  assert.equal(vistaGuardiao.segredo, null, 'nem o guardião recebe a palavra');
+  assert.equal(vistaCacador.segredo, null);
+  assert.ok(vistaGuardiao.tema, 'o tema é sorteado');
+  assert.equal(vistaCacador.tema, vistaGuardiao.tema, 'o tema é público');
+  assert.equal(vistaCacador.prefixo.length, 1);
+
+  // o guardião pode arriscar; errando, perde ponto e a rodada continua
+  // (o ouvinte entra antes do envio: o servidor transmite o estado antes do callback)
+  const apos = esperarEstado(guardiao, (e) => e.jogadores.some((j) => j.sou && j.pontos === -1));
+  assert.equal((await pedir(guardiao, 'arriscar', { palavra: 'zzzzzz' })).ok, true);
+  assert.equal((await apos).fase, 'jogando');
+
+  // e pode pular a palavra, que só então aparece para todos
+  const fim = esperarEstado(sockets[2], (e) => e.fase === 'fimRodada');
+  assert.equal((await pedir(guardiao, 'entregarPalavra')).ok, true);
+  const vistaFim = await fim;
+  assert.ok(vistaFim.segredo, 'a palavra é revelada no fim da rodada');
+  assert.equal(vistaFim.resultadoRodada.tipo, 'desistiu');
+});

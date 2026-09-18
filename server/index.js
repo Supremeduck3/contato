@@ -4,7 +4,7 @@ const http = require('http');
 const path = require('path');
 const express = require('express');
 const { Server } = require('socket.io');
-const { Jogo, ErroDeJogo } = require('./game');
+const { Jogo, ErroDeJogo, MODOS } = require('./game');
 
 const PORTA = process.env.PORT || 3000;
 const TICK_MS = 500;
@@ -99,6 +99,7 @@ io.on('connection', (socket) => {
         if (Number.isFinite(+config.rodadas)) {
           limpa.rodadas = Math.min(20, Math.max(0, Math.round(+config.rodadas)));
         }
+        if (MODOS.includes(config.modo)) limpa.modo = config.modo;
         if (Number.isFinite(+config.maxJogadores)) {
           limpa.maxJogadores = Math.min(16, Math.max(3, Math.round(+config.maxJogadores)));
         }

@@ -15,6 +15,34 @@ npm start          # http://localhost:3000
 Um jogador cria a sala e compartilha o código de 4 letras (ou o link com `#CODIGO`);
 os outros entram pelo mesmo endereço. A porta pode ser trocada com `PORT=8080 npm start`.
 
+## Modos de jogo
+
+### Clássico
+O Dono da Palavra escolhe a palavra secreta e é o único que a conhece.
+
+### Palavra Surpresa 🎲
+O servidor **sorteia um tema aleatório** e uma palavra dele — e **ninguém sabe qual é,
+nem o Dono da Palavra**, que vira apenas o **guardião**:
+
+- não escolhe nada e não vê a palavra (nem no estado que recebe do servidor);
+- continua bloqueando os contatos, adivinhando a palavra das *dicas* — o que independe de
+  conhecer a palavra secreta;
+- também pode **arriscar** a palavra secreta, jogando junto com todo mundo;
+- não ganha o bônus de "segurar a palavra" (ele não segurou nada), só os pontos de bloqueio;
+- ele ou o anfitrião podem **pular a palavra** se a rodada empacar;
+- se alguém escrever a palavra secreta sem querer como palavra de uma dica, isso conta como
+  palpite certo e encerra a rodada.
+
+O tema sorteado é público (aparece no topo da mesa) e nenhuma palavra se repete na mesma partida.
+
+**20 temas, 367 palavras:** Animais · Comida · Objetos · Natureza · Esportes · Profissões ·
+Lugares · Transporte · Corpo humano · Música · Tecnologia · **Cinema** · **Futebol (times)** ·
+**Games** · **Séries e desenhos** · **Super-heróis** · **Países e cidades** · **Mitologia** ·
+**Marcas** · Roupas.
+
+Para acrescentar temas ou palavras, edite `server/palavras.js` — acentos e maiúsculas são
+normalizados na carga, e palavras com menos de 4 letras são descartadas sozinhas.
+
 ## Regras
 
 1. Um jogador é o **Dono da Palavra**: escolhe uma palavra secreta e revela só a primeira letra.
@@ -40,6 +68,7 @@ Acentos, maiúsculas e espaços são ignorados na comparação: `Coração` = `c
 | Opção | Padrão | Faixa |
 | --- | --- | --- |
 | Segundos para bloquear | 15 | 5 – 60 |
+| Modo | clássico | `classico` ou `surpresa` |
 | Rodadas | uma por jogador | 0 (= 1 por jogador) – 20 |
 | Jogadores | até 16 | mínimo 3 para começar |
 
@@ -47,12 +76,14 @@ Acentos, maiúsculas e espaços são ignorados na comparação: `Coração` = `c
 
 A palavra secreta e as palavras por trás das dicas nunca são enviadas a quem não pode vê-las:
 o estado é montado **por jogador** (`Jogo#estadoPara`). A palavra de uma dica só aparece para
-todos depois que o contato é resolvido.
+todos depois que o contato é resolvido. No modo Palavra Surpresa o campo `segredo` vai `null`
+até para o guardião — a palavra sorteada só é revelada no fim da rodada.
 
 ## Estrutura
 
 ```
 server/game.js   regras do jogo (estado puro, sem rede) — o coração do projeto
+server/palavras.js banco de temas e sorteio do modo Palavra Surpresa
 server/index.js  servidor HTTP + Socket.IO, salas, relógio dos contatos
 public/          cliente (index.html, styles.css, app.js)
 test/            testes do motor de regras e um teste ponta a ponta com 6 sockets
@@ -64,14 +95,15 @@ test/            testes do motor de regras e um teste ponta a ponta com 6 socket
 npm test
 ```
 
-20 testes: regras (contato, bloqueio, revelação de letras, pontuação, rodadas, reconexão) e
-uma partida completa com seis clientes reais conectados por WebSocket.
+34 testes: regras dos dois modos (contato, bloqueio, revelação de letras, pontuação, rodadas,
+reconexão, sorteio de tema sem repetição, sanidade do banco de palavras) e duas partidas
+completas com seis clientes reais conectados por WebSocket.
 
 ## Eventos de Socket.IO
 
 | Cliente → servidor | Dados |
 | --- | --- |
-| `criarSala` | `{ nome, config }` |
+| `criarSala` | `{ nome, config }` — `config.modo`: `classico` \| `surpresa` |
 | `entrarSala` | `{ sala, nome }` |
 | `iniciar` | — |
 | `definirPalavra` | `{ palavra }` |

@@ -15,7 +15,15 @@
  *  - Caçadores também podem arriscar a palavra secreta inteira.
  *  - A rodada acaba quando a palavra é adivinhada ou totalmente revelada.
  *  - O posto de Dono da Palavra gira a cada rodada.
+ *
+ * Dois modos:
+ *  - 'classico':  o Dono escolhe a palavra e é o único que a conhece.
+ *  - 'surpresa':  o servidor sorteia um TEMA aleatório e uma palavra dele.
+ *                 Ninguém sabe a palavra — nem o Dono, que vira só o guardião:
+ *                 bloqueia contatos e também pode arriscar a palavra secreta.
  */
+
+const { sortear } = require('./palavras');
 
 const PONTOS = {
   CONTATO_AUTOR: 1,
@@ -32,7 +40,10 @@ const PADRAO = {
   segundosContato: 15,
   tamanhoMinimoPalavra: 4,
   rodadas: 0, // 0 = uma rodada por jogador
+  modo: 'classico', // 'classico' | 'surpresa'
 };
+
+const MODOS = ['classico', 'surpresa'];
 
 /** Remove acentos, espaços e caixa para comparar palavras. */
 function normalizar(texto) {
@@ -64,6 +75,8 @@ class Jogo {
     this.rodada = 0;
     this.totalRodadas = 0;
     this.segredo = '';
+    this.tema = null;
+    this.usadas = new Set(); // palavras já sorteadas nesta partida
     this.reveladas = 0;
     this.dicas = [];
     this.proximaDicaId = 1;
@@ -73,6 +86,11 @@ class Jogo {
 
   // ---------------------------------------------------------------- jogadores
 
+  get surpresa() {
+    return this.config.modo === 'surpresa';
+  }
+
+  /** Quem pode arriscar / dar dicas muda um pouco entre os modos. */
   get dono() {
     return this.ordem[this.donoIndex] || null;
   }
@@ -147,7 +165,12 @@ class Jogo {
     this.donoIndex = 0;
     this.totalRodadas = this.config.rodadas > 0 ? this.config.rodadas : this.ordem.length;
     this.vencedores = [];
-    this.registrar('O jogo começou!');
+    this.usadas = new Set();
+    this.registrar(
+      this.surpresa
+        ? 'O jogo começou no modo Palavra Surpresa: ninguém sabe a palavra!'
+        : 'O jogo começou!',
+    );
     this.novaRodada();
   }
 
@@ -155,12 +178,30 @@ class Jogo {
     this.rodada += 1;
     this.dicas = [];
     this.segredo = '';
+    this.tema = null;
     this.reveladas = 0;
+
+    if (this.surpresa) {
+      const sorteio = sortear(this.usadas, this.aleatorio || Math.random);
+      this.usadas.add(sorteio.palavra);
+      this.segredo = sorteio.palavra;
+      this.tema = sorteio.tema;
+      this.reveladas = 1;
+      this.fase = 'jogando';
+      this.registrar(
+        `Rodada ${this.rodada}: tema sorteado "${this.tema}", a palavra começa com ` +
+          `"${this.prefixo().toUpperCase()}" — e ninguém sabe qual é. ` +
+          `${this.nomeDe(this.dono)} é o guardião e só pode bloquear.`,
+      );
+      return;
+    }
+
     this.fase = 'escolha';
     this.registrar(`Rodada ${this.rodada}: ${this.nomeDe(this.dono)} é o Dono da Palavra.`);
   }
 
   definirPalavra(idJogador, palavra) {
+    if (this.surpresa) erro('Neste modo a palavra é sorteada pelo servidor.');
     if (this.fase !== 'escolha') erro('Não é hora de escolher a palavra.');
     if (idJogador !== this.dono) erro('Só o Dono da Palavra escolhe a palavra.');
     const limpa = normalizar(palavra);
@@ -192,7 +233,13 @@ class Jogo {
       erro(`Sua palavra precisa começar com "${this.prefixo().toUpperCase()}".`);
     }
     if (alvo === this.segredo) {
-      erro('Essa é a palavra do Dono! Use o botão de arriscar a palavra secreta.');
+      if (!this.surpresa) {
+        erro('Essa é a palavra do Dono! Use o botão de arriscar a palavra secreta.');
+      }
+      // ninguém sabia a palavra: quem a escreveu numa dica acertou sem querer
+      this.registrar(`${jogador.nome} escreveu a palavra secreta numa dica!`);
+      this.arriscar(idJogador, alvo);
+      return null;
     }
     const palavras = dica.split(/\s+/).map(normalizar).filter(Boolean);
     if (palavras.some((p) => p.includes(alvo))) {
@@ -340,7 +387,7 @@ class Jogo {
   /** Um caçador arrisca a palavra secreta inteira. */
   arriscar(idJogador, palavra) {
     if (this.fase !== 'jogando') erro('A rodada não está em andamento.');
-    if (idJogador === this.dono) erro('Você é o Dono da Palavra.');
+    if (idJogador === this.dono && !this.surpresa) erro('Você é o Dono da Palavra.');
     const alvo = normalizar(palavra);
     if (!alvo) erro('Escreva a palavra.');
     if (alvo === this.segredo) {
@@ -362,6 +409,18 @@ class Jogo {
   /** O Dono desiste e entrega a palavra. */
   desistir(idJogador) {
     if (this.fase !== 'jogando') erro('A rodada não está em andamento.');
+    if (this.surpresa) {
+      if (idJogador !== this.dono && this.ordem[0] !== idJogador) {
+        erro('Só o guardião ou o anfitrião pode pular a palavra.');
+      }
+      this.encerrarRodada({
+        tipo: 'desistiu',
+        texto:
+          `${this.nomeDe(idJogador)} pulou a rodada. A palavra era ` +
+          `"${this.segredo.toUpperCase()}" (tema: ${this.tema}).`,
+      });
+      return;
+    }
     if (idJogador !== this.dono) erro('Só o Dono da Palavra pode entregar a palavra.');
     this.encerrarRodada({
       tipo: 'desistiu',
@@ -373,7 +432,7 @@ class Jogo {
     if (resultado.tipo === 'bloqueado' || resultado.tipo === 'desistiu') {
       // nada extra
     }
-    if (resultado.tipo !== 'revelada' && resultado.tipo !== 'desistiu') {
+    if (!this.surpresa && resultado.tipo !== 'revelada' && resultado.tipo !== 'desistiu') {
       this.pontuar(this.dono, PONTOS.DONO_SOBREVIVEU);
     }
     this.fase = 'fimRodada';
@@ -445,14 +504,17 @@ class Jogo {
       rodada: this.rodada,
       totalRodadas: this.totalRodadas,
       config: this.config,
+      modo: this.config.modo,
+      tema: this.tema,
       euSouDono: souDono,
       euSouAnfitriao: this.ordem[0] === idJogador,
       donoId: this.dono,
       donoNome: this.nomeDe(this.dono),
       prefixo: this.prefixo().toUpperCase(),
       reveladas: this.reveladas,
+      // no modo surpresa nem o guardião vê a palavra antes do fim da rodada
       segredo:
-        souDono || this.fase === 'fimRodada' || this.fase === 'fimJogo'
+        (souDono && !this.surpresa) || this.fase === 'fimRodada' || this.fase === 'fimJogo'
           ? this.segredo.toUpperCase()
           : null,
       resultadoRodada: this.resultadoRodada || null,
@@ -492,4 +554,4 @@ class Jogo {
   }
 }
 
-module.exports = { Jogo, ErroDeJogo, normalizar, PONTOS, PADRAO };
+module.exports = { Jogo, ErroDeJogo, normalizar, PONTOS, PADRAO, MODOS };

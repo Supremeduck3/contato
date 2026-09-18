@@ -29,6 +29,18 @@
 
     <div class="cartao">
       <h2>Criar uma sala</h2>
+      <div class="modos">
+        <label class="modo selecionado">
+          <input type="radio" name="modo" value="classico" checked />
+          <b>Clássico</b>
+          <span>O Dono da Palavra escolhe a palavra e só ele a conhece.</span>
+        </label>
+        <label class="modo">
+          <input type="radio" name="modo" value="surpresa" />
+          <b>Palavra Surpresa 🎲</b>
+          <span>Tema sorteado e ninguém sabe a palavra — nem o Dono, que vira guardião e só bloqueia.</span>
+        </label>
+      </div>
       <div class="linha">
         <label class="mini">Segundos p/ bloquear
           <input id="in-segundos" type="number" min="5" max="60" value="15" />
@@ -51,6 +63,9 @@
         <li>Quem descobrir a palavra secreta pode <b>arriscar</b> a qualquer momento (+3 se acertar, −1 se errar).</li>
         <li>A rodada acaba quando a palavra é adivinhada ou revelada por inteiro. Depois o posto de Dono passa adiante.</li>
       </ol>
+      <p><b>Modo Palavra Surpresa:</b> o servidor sorteia um tema (cinema, futebol, games,
+        mitologia, marcas…) e uma palavra dele. <b>Ninguém</b> sabe qual é — o Dono vira guardião:
+        só bloqueia contatos e também pode arriscar a palavra. Todo mundo caça junto.</p>
     </details>
     <p id="erro-entrada" class="erro"></p>
   </section>
@@ -71,6 +86,7 @@
       <main>
         <div id="painel-palavra" class="cartao destaque">
           <div class="rotulo">Palavra do <b id="lbl-dono">—</b></div>
+          <div id="lbl-tema" class="tema oculto"></div>
           <div id="letras" class="letras"></div>
           <div id="estado-msg" class="estado-msg"></div>
         </div>
@@ -115,6 +131,17 @@
           <h2>Você é o Dono da Palavra</h2>
           <p class="sub">Leia as dicas e bloqueie os contatos dizendo a palavra que os caçadores estão combinando.</p>
           <button id="btn-entregar" class="perigo">Entregar a palavra</button>
+        </div>
+
+        <div id="acao-guardiao" class="cartao oculto">
+          <h2>Você é o guardião 🛡️</h2>
+          <p class="sub">Nesta rodada nem você sabe a palavra. Bloqueie os contatos adivinhando
+            a palavra das dicas — e, se descobrir a palavra secreta, arrisque também.</p>
+          <div class="linha">
+            <input id="in-arriscar-dono" placeholder="arriscar a palavra secreta" autocomplete="off" />
+            <button id="btn-arriscar-dono" class="principal">Arriscar</button>
+          </div>
+          <button id="btn-pular" class="perigo">Pular a palavra</button>
         </div>
 
         <div id="acao-fim-rodada" class="cartao oculto">

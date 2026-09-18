@@ -29,7 +29,11 @@ $('btn-criar').onclick = () => {
     'criarSala',
     {
       nome: nome(),
-      config: { segundosContato: +$('in-segundos').value, rodadas: +$('in-rodadas').value },
+      config: {
+        segundosContato: +$('in-segundos').value,
+        rodadas: +$('in-rodadas').value,
+        modo: document.querySelector('input[name="modo"]:checked').value,
+      },
     },
     (r) => {
       if (!r.ok) return mostrarErro(r.erro, 'erro-entrada');
@@ -53,6 +57,14 @@ $('btn-entrar').onclick = () => {
 $('in-sala').addEventListener('keydown', (e) => e.key === 'Enter' && $('btn-entrar').click());
 $('in-nome').addEventListener('keydown', (e) => e.key === 'Enter' && $('in-sala').focus());
 
+for (const radio of document.querySelectorAll('input[name="modo"]')) {
+  radio.addEventListener('change', () => {
+    for (const label of document.querySelectorAll('.modo')) {
+      label.classList.toggle('selecionado', label.contains(radio) && radio.checked);
+    }
+  });
+}
+
 // ------------------------------------------------------------------- ações
 
 $('btn-iniciar').onclick = () => emitir('iniciar');
@@ -61,6 +73,21 @@ $('btn-novo-jogo').onclick = () => emitir('novoJogo');
 $('btn-entregar').onclick = () => {
   if (confirm('Entregar a palavra e encerrar a rodada?')) emitir('entregarPalavra');
 };
+$('btn-pular').onclick = () => {
+  if (confirm('Pular esta palavra e encerrar a rodada?')) emitir('entregarPalavra');
+};
+$('btn-arriscar-dono').onclick = () => {
+  const palavra = $('in-arriscar-dono').value;
+  if (!palavra.trim()) return mostrarErro('Escreva a palavra que você quer arriscar.');
+  socket.emit('arriscar', { palavra }, (r) => {
+    if (!r.ok) return mostrarErro(r.erro);
+    $('in-arriscar-dono').value = '';
+  });
+};
+$('in-arriscar-dono').addEventListener(
+  'keydown',
+  (e) => e.key === 'Enter' && $('btn-arriscar-dono').click(),
+);
 $('btn-sair').onclick = () => {
   emitir('sair');
   estado = null;
@@ -120,7 +147,13 @@ function render() {
   $('lbl-sala').textContent = estado.sala;
   $('lbl-rodada').textContent =
     estado.fase === 'lobby' ? 'no lobby' : `rodada ${estado.rodada} de ${estado.totalRodadas}`;
+  const surpresa = estado.modo === 'surpresa';
+  $('painel-palavra').querySelector('.rotulo').innerHTML = surpresa
+    ? 'Palavra sorteada · guardião: <b id="lbl-dono">—</b>'
+    : 'Palavra do <b id="lbl-dono">—</b>';
   $('lbl-dono').textContent = estado.euSouDono ? 'você' : estado.donoNome;
+  $('lbl-tema').classList.toggle('oculto', !estado.tema);
+  if (estado.tema) $('lbl-tema').textContent = `🎲 tema: ${estado.tema}`;
   $('lbl-dono-espera').textContent = estado.donoNome;
 
   renderLetras();
@@ -155,9 +188,18 @@ function renderLetras() {
     caixa.appendChild(div);
   }
   ultimoPrefixo = estado.prefixo;
-  $('estado-msg').textContent = estado.euSouDono
-    ? `Sua palavra: ${estado.segredo}. ${estado.reveladas} letra(s) reveladas.`
-    : `${estado.reveladas} letra(s) reveladas. Dê dicas de palavras que comecem com "${estado.prefixo}".`;
+  if (estado.modo === 'surpresa' && !estado.segredo) {
+    $('estado-msg').textContent =
+      `Palavra sorteada do tema "${estado.tema}" — ninguém sabe qual é. ` +
+      `${estado.reveladas} letra(s) reveladas.`;
+  } else if (estado.euSouDono && estado.segredo) {
+    $('estado-msg').textContent =
+      `Sua palavra: ${estado.segredo}. ${estado.reveladas} letra(s) reveladas.`;
+  } else {
+    $('estado-msg').textContent =
+      `${estado.reveladas} letra(s) reveladas. ` +
+      `Dê dicas de palavras que comecem com "${estado.prefixo}".`;
+  }
 }
 
 function renderPaineis() {
@@ -165,8 +207,11 @@ function renderPaineis() {
   ver('acao-lobby', estado.fase === 'lobby');
   ver('acao-escolha-dono', estado.fase === 'escolha' && estado.euSouDono);
   ver('acao-escolha-espera', estado.fase === 'escolha' && !estado.euSouDono);
+  const surpresa = estado.modo === 'surpresa';
   ver('acao-dica', estado.fase === 'jogando' && !estado.euSouDono);
-  ver('acao-dono', estado.fase === 'jogando' && estado.euSouDono);
+  ver('acao-dono', estado.fase === 'jogando' && estado.euSouDono && !surpresa);
+  ver('acao-guardiao', estado.fase === 'jogando' && estado.euSouDono && surpresa);
+  $('btn-pular').classList.toggle('oculto', !(estado.euSouDono || estado.euSouAnfitriao));
   ver('acao-fim-rodada', estado.fase === 'fimRodada');
   ver('acao-fim-jogo', estado.fase === 'fimJogo');
 
