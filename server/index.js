@@ -5,6 +5,7 @@ const path = require('path');
 const express = require('express');
 const { Server } = require('socket.io');
 const { Jogo, ErroDeJogo, MODOS } = require('./game');
+const { NOMES_DOS_TEMAS, BANCO } = require('./palavras');
 
 const PORTA = process.env.PORT || 3000;
 const TICK_MS = 500;
@@ -59,6 +60,10 @@ app.get('/api/salas/:id', (req, res) => {
   });
 });
 
+app.get('/api/temas', (_req, res) => {
+  res.json(NOMES_DOS_TEMAS.map((tema) => ({ tema, palavras: BANCO[tema].length })));
+});
+
 app.get('/api/saude', (_req, res) => res.json({ ok: true, salas: salas.size }));
 
 io.on('connection', (socket) => {
@@ -100,6 +105,10 @@ io.on('connection', (socket) => {
           limpa.rodadas = Math.min(20, Math.max(0, Math.round(+config.rodadas)));
         }
         if (MODOS.includes(config.modo)) limpa.modo = config.modo;
+        if (Array.isArray(config.temas)) {
+          const escolhidos = config.temas.filter((t) => NOMES_DOS_TEMAS.includes(t));
+          limpa.temas = escolhidos.length === NOMES_DOS_TEMAS.length ? [] : [...new Set(escolhidos)];
+        }
         if (Number.isFinite(+config.maxJogadores)) {
           limpa.maxJogadores = Math.min(16, Math.max(3, Math.round(+config.maxJogadores)));
         }
@@ -124,6 +133,8 @@ io.on('connection', (socket) => {
     }));
 
   socket.on('iniciar', (_dados, cb) => agir(cb, (jogo) => jogo.iniciar(socket.id)));
+  socket.on('definirTemas', ({ temas } = {}, cb) =>
+    agir(cb, (jogo) => ({ temas: jogo.definirTemas(socket.id, temas) })));
   socket.on('definirPalavra', ({ palavra } = {}, cb) =>
     agir(cb, (jogo) => jogo.definirPalavra(socket.id, palavra)));
   socket.on('darDica', ({ texto, palavra } = {}, cb) =>

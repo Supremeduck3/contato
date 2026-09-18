@@ -138,3 +138,101 @@ test('o modo clássico segue intacto', () => {
   assert.throws(() => jogo.arriscar('p1', 'girassol'), ErroDeJogo);
   assert.throws(() => jogo.criarDica('p2', 'a flor do sol', 'girassol'), ErroDeJogo);
 });
+
+// ------------------------------------------------- guardião dando dicas
+
+test('o guardião dá dicas como todo mundo e pontua pelo contato', () => {
+  const jogo = mesaSurpresa();
+  const guardiao = jogo.dono;
+  const alvo = jogo.prefixo() + 'zzzz';
+  const dica = jogo.criarDica(guardiao, 'uma definicao do guardiao', alvo);
+  assert.equal(dica.autorId, guardiao);
+  jogo.darContato('p3', dica.id, alvo);
+  jogo.resolverDica(dica);
+  assert.equal(jogo.jogadores.get(guardiao).pontos, 1);
+  assert.equal(jogo.jogadores.get('p3').pontos, 1);
+  assert.equal(jogo.reveladas, 2);
+});
+
+test('ninguém bloqueia a dica do próprio guardião', () => {
+  const jogo = mesaSurpresa();
+  const guardiao = jogo.dono;
+  const alvo = jogo.prefixo() + 'zzzz';
+  const dica = jogo.criarDica(guardiao, 'uma definicao do guardiao', alvo);
+  jogo.darContato('p2', dica.id, alvo);
+  assert.throws(() => jogo.bloquear(guardiao, dica.id, alvo), ErroDeJogo);
+  assert.equal(jogo.dicas[0].estado, 'emContato', 'o contato segue de pé');
+  jogo.resolverDica(dica);
+  assert.equal(jogo.dicas[0].resultado.tipo, 'contato');
+});
+
+test('o guardião continua sem dar contato nas dicas alheias', () => {
+  const jogo = mesaSurpresa();
+  const alvo = jogo.prefixo() + 'zzzz';
+  const dica = jogo.criarDica('p2', 'uma definicao qualquer', alvo);
+  assert.throws(() => jogo.darContato(jogo.dono, dica.id, alvo), ErroDeJogo);
+});
+
+test('no modo clássico o Dono continua sem dar dicas', () => {
+  const jogo = new Jogo('CL2');
+  for (let i = 1; i <= 6; i++) jogo.entrar(`p${i}`, `Jogador${i}`);
+  jogo.iniciar('p1');
+  jogo.definirPalavra('p1', 'girassol');
+  assert.throws(() => jogo.criarDica('p1', 'uma definicao', 'gelo'), ErroDeJogo);
+});
+
+// --------------------------------------------------- escolha de temas
+
+test('a sala pode limitar os temas do sorteio', () => {
+  const jogo = mesaSurpresa({ temas: ['Cinema'], rodadas: 6 });
+  for (let i = 0; i < 6; i++) {
+    assert.equal(jogo.tema, 'Cinema');
+    assert.ok(BANCO['Cinema'].includes(jogo.segredo));
+    jogo.desistir('p1');
+    jogo.proximaRodada('p1');
+  }
+});
+
+test('o anfitrião troca os temas entre as rodadas', () => {
+  const jogo = mesaSurpresa({ rodadas: 3 });
+  assert.deepEqual(jogo.temasEmJogo(), NOMES_DOS_TEMAS, 'começa com todos');
+  assert.throws(() => jogo.definirTemas('p1', ['Games']), ErroDeJogo, /rodada/);
+  jogo.desistir('p1');
+  jogo.definirTemas('p1', ['Games', 'Mitologia']);
+  jogo.proximaRodada('p1');
+  assert.ok(['Games', 'Mitologia'].includes(jogo.tema));
+});
+
+test('só o anfitrião muda os temas, e só temas que existem', () => {
+  const jogo = mesaSurpresa();
+  jogo.desistir('p1');
+  assert.throws(() => jogo.definirTemas('p3', ['Games']), ErroDeJogo);
+  assert.throws(() => jogo.definirTemas('p1', ['Culinária Molecular']), ErroDeJogo);
+  assert.deepEqual(jogo.temasEmJogo(), NOMES_DOS_TEMAS, 'nada mudou');
+});
+
+test('escolher todos os temas volta ao padrão', () => {
+  const jogo = mesaSurpresa({ temas: ['Cinema'] });
+  jogo.desistir('p1');
+  assert.deepEqual(jogo.temasEmJogo(), ['Cinema']);
+  assert.deepEqual(jogo.definirTemas('p1', NOMES_DOS_TEMAS), []);
+  assert.deepEqual(jogo.temasEmJogo(), NOMES_DOS_TEMAS);
+  assert.deepEqual(jogo.definirTemas('p1', []), [], 'lista vazia = todos');
+});
+
+test('trocar temas não existe no modo clássico', () => {
+  const jogo = new Jogo('CL3');
+  for (let i = 1; i <= 3; i++) jogo.entrar(`p${i}`, `J${i}`);
+  assert.throws(() => jogo.definirTemas('p1', ['Cinema']), ErroDeJogo);
+});
+
+test('um tema esgotado não trava o sorteio', () => {
+  const jogo = mesaSurpresa({ temas: ['Cinema'], rodadas: 20 });
+  const palavras = BANCO['Cinema'].length;
+  for (let i = 0; i < palavras + 3; i++) {
+    assert.equal(jogo.tema, 'Cinema');
+    jogo.desistir('p1');
+    if (jogo.rodada >= jogo.totalRodadas) break;
+    jogo.proximaRodada('p1');
+  }
+});

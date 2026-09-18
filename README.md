@@ -25,15 +25,24 @@ O servidor **sorteia um tema aleatório** e uma palavra dele — e **ninguém sa
 nem o Dono da Palavra**, que vira apenas o **guardião**:
 
 - não escolhe nada e não vê a palavra (nem no estado que recebe do servidor);
-- continua bloqueando os contatos, adivinhando a palavra das *dicas* — o que independe de
-  conhecer a palavra secreta;
-- também pode **arriscar** a palavra secreta, jogando junto com todo mundo;
+- **dá dicas como todo mundo** e também pode **arriscar** a palavra secreta;
+- bloqueia os contatos das **dicas dos outros**, adivinhando a palavra da dica — o que independe
+  de conhecer a palavra secreta;
+- a **dica do próprio guardião não pode ser bloqueada**: o bloqueador é ele, então quem contata
+  a dica dele corre sem risco (o servidor recusa o bloqueio e a interface avisa);
 - não ganha o bônus de "segurar a palavra" (ele não segurou nada), só os pontos de bloqueio;
 - ele ou o anfitrião podem **pular a palavra** se a rodada empacar;
 - se alguém escrever a palavra secreta sem querer como palavra de uma dica, isso conta como
   palpite certo e encerra a rodada.
 
 O tema sorteado é público (aparece no topo da mesa) e nenhuma palavra se repete na mesma partida.
+
+### Escolhendo os temas
+
+O anfitrião marca quais temas entram no sorteio — na criação da sala e também **no lobby e entre
+as rodadas**, com a mudança valendo para o próximo sorteio (durante uma rodada o servidor recusa,
+para ninguém trocar o jogo no meio). Nenhum tema marcado = todos valem. Se as palavras de um tema
+acabarem no meio da partida, o sorteio recicla as já usadas em vez de travar.
 
 **20 temas, 367 palavras:** Animais · Comida · Objetos · Natureza · Esportes · Profissões ·
 Lugares · Transporte · Corpo humano · Música · Tecnologia · **Cinema** · **Futebol (times)** ·
@@ -69,6 +78,7 @@ Acentos, maiúsculas e espaços são ignorados na comparação: `Coração` = `c
 | --- | --- | --- |
 | Segundos para bloquear | 15 | 5 – 60 |
 | Modo | clássico | `classico` ou `surpresa` |
+| Temas | todos | qualquer subconjunto dos 20 temas |
 | Rodadas | uma por jogador | 0 (= 1 por jogador) – 20 |
 | Jogadores | até 16 | mínimo 3 para começar |
 
@@ -78,6 +88,8 @@ A palavra secreta e as palavras por trás das dicas nunca são enviadas a quem n
 o estado é montado **por jogador** (`Jogo#estadoPara`). A palavra de uma dica só aparece para
 todos depois que o contato é resolvido. No modo Palavra Surpresa o campo `segredo` vai `null`
 até para o guardião — a palavra sorteada só é revelada no fim da rodada.
+
+A lista de temas disponíveis é servida em `GET /api/temas`.
 
 ## Estrutura
 
@@ -95,17 +107,18 @@ test/            testes do motor de regras e um teste ponta a ponta com 6 socket
 npm test
 ```
 
-34 testes: regras dos dois modos (contato, bloqueio, revelação de letras, pontuação, rodadas,
-reconexão, sorteio de tema sem repetição, sanidade do banco de palavras) e duas partidas
+44 testes: regras dos dois modos (contato, bloqueio, revelação de letras, pontuação, rodadas,
+reconexão, sorteio de tema sem repetição, sanidade do banco de palavras, dicas do guardião, escolha de temas) e duas partidas
 completas com seis clientes reais conectados por WebSocket.
 
 ## Eventos de Socket.IO
 
 | Cliente → servidor | Dados |
 | --- | --- |
-| `criarSala` | `{ nome, config }` — `config.modo`: `classico` \| `surpresa` |
+| `criarSala` | `{ nome, config }` — `config.modo`: `classico` \| `surpresa`; `config.temas` |
 | `entrarSala` | `{ sala, nome }` |
 | `iniciar` | — |
+| `definirTemas` | `{ temas: string[] }` — só o anfitrião, fora da rodada |
 | `definirPalavra` | `{ palavra }` |
 | `darDica` | `{ texto, palavra }` |
 | `contato` | `{ dica, palavra }` |

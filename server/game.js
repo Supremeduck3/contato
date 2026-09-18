@@ -20,10 +20,13 @@
  *  - 'classico':  o Dono escolhe a palavra e é o único que a conhece.
  *  - 'surpresa':  o servidor sorteia um TEMA aleatório e uma palavra dele.
  *                 Ninguém sabe a palavra — nem o Dono, que vira só o guardião:
- *                 bloqueia contatos e também pode arriscar a palavra secreta.
+ *                 dá dicas como todo mundo, bloqueia os contatos das dicas
+ *                 alheias e também pode arriscar a palavra secreta.
+ *                 A dica do próprio guardião não pode ser bloqueada — ele é o
+ *                 bloqueador, então quem contata a dica dele corre sem risco.
  */
 
-const { sortear } = require('./palavras');
+const { sortear, filtrarTemas, NOMES_DOS_TEMAS } = require('./palavras');
 
 const PONTOS = {
   CONTATO_AUTOR: 1,
@@ -41,6 +44,7 @@ const PADRAO = {
   tamanhoMinimoPalavra: 4,
   rodadas: 0, // 0 = uma rodada por jogador
   modo: 'classico', // 'classico' | 'surpresa'
+  temas: [], // temas liberados no modo surpresa; vazio = todos
 };
 
 const MODOS = ['classico', 'surpresa'];
@@ -182,7 +186,7 @@ class Jogo {
     this.reveladas = 0;
 
     if (this.surpresa) {
-      const sorteio = sortear(this.usadas, this.aleatorio || Math.random);
+      const sorteio = sortear(this.usadas, this.aleatorio || Math.random, this.config.temas);
       this.usadas.add(sorteio.palavra);
       this.segredo = sorteio.palavra;
       this.tema = sorteio.tema;
@@ -223,7 +227,7 @@ class Jogo {
 
   criarDica(idJogador, texto, palavra) {
     if (this.fase !== 'jogando') erro('A rodada não está em andamento.');
-    if (idJogador === this.dono) erro('O Dono da Palavra não dá dicas.');
+    if (idJogador === this.dono && !this.surpresa) erro('O Dono da Palavra não dá dicas.');
     const jogador = this.jogadores.get(idJogador) || erro('Jogador desconhecido.');
     const alvo = normalizar(palavra);
     const dica = String(texto || '').trim().slice(0, 240);
@@ -304,6 +308,7 @@ class Jogo {
     if (idJogador !== this.dono) erro('Só o Dono da Palavra pode bloquear.');
     const dica = this.buscarDica(idDica);
     if (dica.estado !== 'emContato') erro('Não há contato em andamento nessa dica.');
+    if (dica.autorId === idJogador) erro('Você não bloqueia um contato na sua própria dica.');
     if (dica.bloqueio) erro('Você já tentou bloquear este contato.');
     const alvo = normalizar(palavra);
     if (!alvo) erro('Diga a palavra que você acha que é a da dica.');
@@ -466,6 +471,31 @@ class Jogo {
     this.novaRodada();
   }
 
+  /** O anfitrião escolhe quais temas entram no sorteio (modo surpresa). */
+  definirTemas(idJogador, temas) {
+    if (!this.surpresa) erro('Os temas só valem no modo Palavra Surpresa.');
+    if (this.ordem[0] !== idJogador) erro('Só o anfitrião escolhe os temas.');
+    if (this.fase === 'jogando' || this.fase === 'escolha') {
+      erro('Espere a rodada acabar para trocar os temas.');
+    }
+    const pedidos = Array.isArray(temas) ? temas : [];
+    const desconhecido = pedidos.find((t) => !NOMES_DOS_TEMAS.includes(t));
+    if (desconhecido) erro(`Tema desconhecido: ${desconhecido}.`);
+    const escolhidos = filtrarTemas(pedidos);
+    this.config.temas = escolhidos.length === NOMES_DOS_TEMAS.length ? [] : escolhidos;
+    this.registrar(
+      this.config.temas.length
+        ? `Temas em jogo: ${this.config.temas.join(', ')}.`
+        : 'Todos os temas entraram no sorteio.',
+    );
+    return this.config.temas;
+  }
+
+  /** Temas efetivamente sorteáveis nesta sala. */
+  temasEmJogo() {
+    return filtrarTemas(this.config.temas);
+  }
+
   // ------------------------------------------------------------------ apoio
 
   pontuar(idJogador, pontos) {
@@ -506,6 +536,8 @@ class Jogo {
       config: this.config,
       modo: this.config.modo,
       tema: this.tema,
+      temasDisponiveis: NOMES_DOS_TEMAS,
+      temasEmJogo: this.temasEmJogo(),
       euSouDono: souDono,
       euSouAnfitriao: this.ordem[0] === idJogador,
       donoId: this.dono,

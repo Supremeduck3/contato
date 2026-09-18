@@ -38,8 +38,19 @@
         <label class="modo">
           <input type="radio" name="modo" value="surpresa" />
           <b>Palavra Surpresa 🎲</b>
-          <span>Tema sorteado e ninguém sabe a palavra — nem o Dono, que vira guardião e só bloqueia.</span>
+          <span>Tema sorteado e ninguém sabe a palavra — nem o Dono, que vira guardião: dá dicas junto,
+            bloqueia os contatos das dicas alheias e também pode arriscar.</span>
         </label>
+      </div>
+      <div id="temas-criar" class="temas oculto">
+        <div class="temas-topo">
+          <span class="rotulo">Temas do sorteio</span>
+          <span>
+            <button type="button" class="fantasma" data-temas="todos">todos</button>
+            <button type="button" class="fantasma" data-temas="nenhum">limpar</button>
+          </span>
+        </div>
+        <div id="lista-temas" class="lista-temas"></div>
       </div>
       <div class="linha">
         <label class="mini">Segundos p/ bloquear
@@ -63,9 +74,11 @@
         <li>Quem descobrir a palavra secreta pode <b>arriscar</b> a qualquer momento (+3 se acertar, −1 se errar).</li>
         <li>A rodada acaba quando a palavra é adivinhada ou revelada por inteiro. Depois o posto de Dono passa adiante.</li>
       </ol>
-      <p><b>Modo Palavra Surpresa:</b> o servidor sorteia um tema (cinema, futebol, games,
-        mitologia, marcas…) e uma palavra dele. <b>Ninguém</b> sabe qual é — o Dono vira guardião:
-        só bloqueia contatos e também pode arriscar a palavra. Todo mundo caça junto.</p>
+      <p><b>Modo Palavra Surpresa:</b> o servidor sorteia um tema e uma palavra dele. <b>Ninguém</b>
+        sabe qual é — o Dono vira guardião: dá dicas como todo mundo, bloqueia os contatos das dicas
+        alheias (a dica dele não pode ser bloqueada, já que o bloqueador é ele) e também pode
+        arriscar a palavra. O anfitrião escolhe quais temas entram no sorteio — cinema, futebol
+        (times), games, séries, super-heróis, mitologia, marcas e mais.</p>
     </details>
     <p id="erro-entrada" class="erro"></p>
   </section>
@@ -95,6 +108,17 @@
         <div id="acao-lobby" class="cartao oculto">
           <h2>Esperando jogadores…</h2>
           <p class="sub">Compartilhe o código da sala. Mínimo de 3 jogadores (feito para 6 ou mais).</p>
+          <div id="temas-lobby" class="temas oculto">
+            <div class="temas-topo">
+              <span class="rotulo">Temas do sorteio</span>
+              <span>
+                <button type="button" class="fantasma" data-temas="todos">todos</button>
+                <button type="button" class="fantasma" data-temas="nenhum">limpar</button>
+              </span>
+            </div>
+            <div id="lista-temas-lobby" class="lista-temas"></div>
+            <p id="temas-resumo" class="sub"></p>
+          </div>
           <button id="btn-iniciar" class="principal">Começar o jogo</button>
         </div>
 
@@ -135,8 +159,16 @@
 
         <div id="acao-guardiao" class="cartao oculto">
           <h2>Você é o guardião 🛡️</h2>
-          <p class="sub">Nesta rodada nem você sabe a palavra. Bloqueie os contatos adivinhando
-            a palavra das dicas — e, se descobrir a palavra secreta, arrisque também.</p>
+          <p class="sub">Nesta rodada nem você sabe a palavra. Você dá dicas como todo mundo, bloqueia
+            os contatos das <b>dicas dos outros</b> (na sua, ninguém corre risco) e pode arriscar a
+            palavra secreta.</p>
+          <div class="linha">
+            <input id="in-dica-palavra-dono" placeholder="sua palavra (secreta)" autocomplete="off" />
+          </div>
+          <div class="linha">
+            <input id="in-dica-texto-dono" placeholder="a definição que todos vão ler" autocomplete="off" />
+            <button id="btn-dica-dono">Enviar dica</button>
+          </div>
           <div class="linha">
             <input id="in-arriscar-dono" placeholder="arriscar a palavra secreta" autocomplete="off" />
             <button id="btn-arriscar-dono" class="principal">Arriscar</button>

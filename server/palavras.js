@@ -131,21 +131,27 @@ const BANCO = Object.fromEntries(
 
 const NOMES_DOS_TEMAS = Object.keys(BANCO);
 
+/** Mantém só os temas que existem no banco; lista vazia = todos os temas. */
+function filtrarTemas(temas) {
+  const escolhidos = (Array.isArray(temas) ? temas : []).filter((t) => NOMES_DOS_TEMAS.includes(t));
+  return escolhidos.length ? [...new Set(escolhidos)] : NOMES_DOS_TEMAS;
+}
+
 /**
  * Sorteia um tema e uma palavra dele, evitando palavras já usadas na partida.
  * @param {Set<string>} usadas palavras já sorteadas
  * @param {() => number} aleatorio gerador (injetável nos testes)
+ * @param {string[]} permitidos temas liberados na sala (vazio = todos)
  */
-function sortear(usadas = new Set(), aleatorio = Math.random) {
+function sortear(usadas = new Set(), aleatorio = Math.random, permitidos = []) {
   const escolher = (lista) => lista[Math.floor(aleatorio() * lista.length)];
-  const disponiveis = NOMES_DOS_TEMAS.filter((tema) =>
-    BANCO[tema].some((p) => !usadas.has(p)),
-  );
-  const temas = disponiveis.length ? disponiveis : NOMES_DOS_TEMAS;
+  const liberados = filtrarTemas(permitidos);
+  const disponiveis = liberados.filter((tema) => BANCO[tema].some((p) => !usadas.has(p)));
+  const temas = disponiveis.length ? disponiveis : liberados;
   const tema = escolher(temas);
   const restantes = BANCO[tema].filter((p) => !usadas.has(p));
   const palavra = escolher(restantes.length ? restantes : BANCO[tema]);
   return { tema, palavra };
 }
 
-module.exports = { BANCO, NOMES_DOS_TEMAS, sortear };
+module.exports = { BANCO, NOMES_DOS_TEMAS, sortear, filtrarTemas };

@@ -32,7 +32,8 @@ $('btn-criar').onclick = () => {
       config: {
         segundosContato: +$('in-segundos').value,
         rodadas: +$('in-rodadas').value,
-        modo: document.querySelector('input[name="modo"]:checked').value,
+        modo: modoEscolhido(),
+        temas: temasMarcados($('lista-temas')),
       },
     },
     (r) => {
@@ -57,11 +58,65 @@ $('btn-entrar').onclick = () => {
 $('in-sala').addEventListener('keydown', (e) => e.key === 'Enter' && $('btn-entrar').click());
 $('in-nome').addEventListener('keydown', (e) => e.key === 'Enter' && $('in-sala').focus());
 
+let TODOS_OS_TEMAS = [];
+
+/** Desenha uma lista de caixas de seleção de temas. */
+function montarTemas(container, temas, marcados, aoMudar) {
+  container.innerHTML = '';
+  for (const tema of temas) {
+    const label = document.createElement('label');
+    label.className = 'tema-opcao';
+    const caixa = document.createElement('input');
+    caixa.type = 'checkbox';
+    caixa.value = tema;
+    caixa.checked = marcados.includes(tema);
+    caixa.addEventListener('change', () => {
+      label.classList.toggle('marcado', caixa.checked);
+      if (aoMudar) aoMudar(temasMarcados(container));
+    });
+    label.classList.toggle('marcado', caixa.checked);
+    label.append(caixa, document.createTextNode(' ' + tema));
+    container.appendChild(label);
+  }
+}
+
+function temasMarcados(container) {
+  return [...container.querySelectorAll('input:checked')].map((c) => c.value);
+}
+
+/** Botões "todos" / "limpar" de um painel de temas. */
+function ligarAtalhos(painel, container, aoMudar) {
+  for (const botao of painel.querySelectorAll('[data-temas]')) {
+    botao.onclick = () => {
+      const marcar = botao.dataset.temas === 'todos';
+      for (const caixa of container.querySelectorAll('input')) {
+        caixa.checked = marcar;
+        caixa.closest('.tema-opcao').classList.toggle('marcado', marcar);
+      }
+      if (aoMudar) aoMudar(temasMarcados(container));
+    };
+  }
+}
+
+fetch('/api/temas')
+  .then((r) => r.json())
+  .then((lista) => {
+    TODOS_OS_TEMAS = lista.map((t) => t.tema);
+    montarTemas($('lista-temas'), TODOS_OS_TEMAS, TODOS_OS_TEMAS);
+    ligarAtalhos($('temas-criar'), $('lista-temas'));
+  })
+  .catch(() => {});
+
+function modoEscolhido() {
+  return document.querySelector('input[name="modo"]:checked').value;
+}
+
 for (const radio of document.querySelectorAll('input[name="modo"]')) {
   radio.addEventListener('change', () => {
     for (const label of document.querySelectorAll('.modo')) {
       label.classList.toggle('selecionado', label.contains(radio) && radio.checked);
     }
+    $('temas-criar').classList.toggle('oculto', modoEscolhido() !== 'surpresa');
   });
 }
 
@@ -76,6 +131,22 @@ $('btn-entregar').onclick = () => {
 $('btn-pular').onclick = () => {
   if (confirm('Pular esta palavra e encerrar a rodada?')) emitir('entregarPalavra');
 };
+$('btn-dica-dono').onclick = () => {
+  socket.emit(
+    'darDica',
+    { texto: $('in-dica-texto-dono').value, palavra: $('in-dica-palavra-dono').value },
+    (r) => {
+      if (!r.ok) return mostrarErro(r.erro);
+      $('in-dica-palavra-dono').value = '';
+      $('in-dica-texto-dono').value = '';
+    },
+  );
+};
+$('in-dica-texto-dono').addEventListener(
+  'keydown',
+  (e) => e.key === 'Enter' && $('btn-dica-dono').click(),
+);
+
 $('btn-arriscar-dono').onclick = () => {
   const palavra = $('in-arriscar-dono').value;
   if (!palavra.trim()) return mostrarErro('Escreva a palavra que você quer arriscar.');
@@ -215,6 +286,8 @@ function renderPaineis() {
   ver('acao-fim-rodada', estado.fase === 'fimRodada');
   ver('acao-fim-jogo', estado.fase === 'fimJogo');
 
+  renderTemasLobby();
+
   const conectados = estado.jogadores.filter((j) => j.conectado).length;
   $('btn-iniciar').disabled = !estado.euSouAnfitriao || conectados < 3;
   $('btn-iniciar').textContent = estado.euSouAnfitriao
@@ -232,6 +305,28 @@ function renderPaineis() {
     $('lbl-vencedores').textContent = `Vencedor(es): ${estado.vencedores.join(', ')}`;
     $('btn-novo-jogo').disabled = !estado.euSouAnfitriao;
   }
+}
+
+let temasDesenhados = '';
+
+function renderTemasLobby() {
+  const painel = $('temas-lobby');
+  const podeTrocar =
+    estado.modo === 'surpresa' &&
+    estado.euSouAnfitriao &&
+    (estado.fase === 'lobby' || estado.fase === 'fimRodada' || estado.fase === 'fimJogo');
+  painel.classList.toggle('oculto', !podeTrocar);
+  if (!podeTrocar) return;
+
+  const assinatura = estado.temasDisponiveis.join('|') + '#' + estado.temasEmJogo.join('|');
+  if (assinatura !== temasDesenhados) {
+    temasDesenhados = assinatura;
+    const enviar = (temas) => emitir('definirTemas', { temas });
+    montarTemas($('lista-temas-lobby'), estado.temasDisponiveis, estado.temasEmJogo, enviar);
+    ligarAtalhos(painel, $('lista-temas-lobby'), enviar);
+  }
+  $('temas-resumo').textContent =
+    `${estado.temasEmJogo.length} de ${estado.temasDisponiveis.length} temas no sorteio.`;
 }
 
 function renderDicas() {
@@ -293,7 +388,12 @@ function cartaoDica(dica) {
   // ações disponíveis
   if (estado.fase !== 'jogando') return el;
 
-  if (estado.euSouDono && dica.estado === 'emContato' && !dica.bloqueio) {
+  if (estado.euSouDono && dica.souAutor && dica.estado === 'emContato') {
+    const aviso = document.createElement('div');
+    aviso.className = 'contatos';
+    aviso.textContent = 'Esta dica é sua: você não pode bloquear este contato.';
+    el.appendChild(aviso);
+  } else if (estado.euSouDono && dica.estado === 'emContato' && !dica.bloqueio) {
     el.appendChild(
       formulario('Qual é a palavra dela?', 'BLOQUEAR', 'perigo', (valor) =>
         emitir('bloquear', { dica: dica.id, palavra: valor }),
